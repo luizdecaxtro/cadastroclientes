@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cadastro de Visitantes — Lojas de Castro</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --verde: #1a3a2a; --verde-medio: #2d5a3d; --verde-claro: #4a8c5c;
+      --verde-suave: #e8f4ec; --verde-borda: #c2dfc9;
+      --dourado: #c8a96e; --dourado-claro: #f0e4c8;
+      --creme: #faf7f2; --texto: #1c2820; --texto-muted: #5a6b5e;
+      --branco: #ffffff; --radius: 10px; --radius-lg: 16px;
+      --sombra: 0 4px 32px rgba(26,58,42,0.10);
+      --vermelho: #c0392b; --vermelho-suave: #fdecea;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'DM Sans', sans-serif; background-color: var(--creme); color: var(--texto); min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── OVERLAYS GENÉRICOS ── */
+    .overlay {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      background: rgba(26,58,42,0.92); backdrop-filter: blur(6px);
+      align-items: center; justify-content: center; padding: 1rem;
+    }
+    .overlay.active { display: flex; }
+
+    /* ── SETUP ── */
+    .setup-box {
+      background: var(--branco); border-radius: var(--radius-lg);
+      padding: 2.5rem; width: 100%; max-width: 480px;
+      animation: fadeUp 0.4s ease;
+    }
+    .setup-box h2 { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--verde); margin-bottom: 0.4rem; }
+    .setup-box p { font-size: 14px; color: var(--texto-muted); margin-bottom: 1.5rem; line-height: 1.6; }
+    .setup-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 1rem; }
+    .setup-field label { font-size: 13px; font-weight: 500; color: var(--texto-muted); }
+    .setup-field input { font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--texto); background: var(--creme); border: 1.5px solid var(--verde-borda); border-radius: var(--radius); padding: 10px 14px; outline: none; width: 100%; transition: border-color 0.2s, box-shadow 0.2s; }
+    .setup-field input:focus { border-color: var(--verde-claro); box-shadow: 0 0 0 3px rgba(74,140,92,0.12); }
+    .setup-hint { font-size: 12px; color: var(--texto-muted); margin-top: 4px; }
+    .setup-hint a { color: var(--verde-claro); text-decoration: underline; }
+    .btn-setup { width: 100%; padding: 12px; margin-top: 0.5rem; background: var(--verde); color: var(--branco); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; border: none; border-radius: var(--radius); cursor: pointer; transition: background 0.2s; }
+    .btn-setup:hover { background: var(--verde-medio); }
+    .msg-erro-setup { font-size: 13px; color: #8b1a1a; background: #fdecea; border: 1px solid #f5b4b0; border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: none; }
+
+    /* ── SENHA ADMIN ── */
+    .senha-box {
+      background: var(--branco); border-radius: var(--radius-lg);
+      padding: 2.5rem; width: 100%; max-width: 380px;
+      animation: fadeUp 0.4s ease; text-align: center;
+    }
+    .senha-box .lock-icon { font-size: 40px; margin-bottom: 1rem; }
+    .senha-box h2 { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--verde); margin-bottom: 0.4rem; }
+    .senha-box p { font-size: 13px; color: var(--texto-muted); margin-bottom: 1.5rem; }
+    .senha-box input { font-family: 'DM Sans', sans-serif; font-size: 15px; text-align: center; letter-spacing: 0.1em; color: var(--texto); background: var(--creme); border: 1.5px solid var(--verde-borda); border-radius: var(--radius); padding: 12px; outline: none; width: 100%; margin-bottom: 1rem; transition: border-color 0.2s, box-shadow 0.2s; }
+    .senha-box input:focus { border-color: var(--verde-claro); box-shadow: 0 0 0 3px rgba(74,140,92,0.12); }
+    .senha-box .btn-setup { margin-top: 0; }
+    .senha-box .btn-cancelar { width: 100%; padding: 10px; margin-top: 8px; background: transparent; color: var(--texto-muted); font-family: 'DM Sans', sans-serif; font-size: 14px; border: 1.5px solid var(--verde-borda); border-radius: var(--radius); cursor: pointer; transition: background 0.2s; }
+    .senha-box .btn-cancelar:hover { background: var(--verde-suave); }
+    .senha-erro { font-size: 13px; color: #8b1a1a; background: #fdecea; border: 1px solid #f5b4b0; border-radius: 8px; padding: 8px 12px; margin-top: 8px; display: none; }
+
+    /* ── PAINEL CRUD ── */
+    .crud-box {
+      background: var(--branco); border-radius: var(--radius-lg);
+      width: 100%; max-width: 1000px; max-height: 90vh;
+      display: flex; flex-direction: column;
+      animation: fadeUp 0.4s ease; overflow: hidden;
+    }
+    .crud-header {
+      background: var(--verde); color: var(--branco);
+      padding: 1.25rem 1.75rem;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .crud-header h2 { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 400; }
+    .crud-header .crud-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-crud-acao { padding: 7px 14px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: var(--branco); transition: background 0.2s; }
+    .btn-crud-acao:hover { background: rgba(255,255,255,0.2); }
+    .btn-crud-fechar { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); color: var(--branco); width: 32px; height: 32px; border-radius: 8px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+    .btn-crud-fechar:hover { background: rgba(255,0,0,0.3); }
+
+    .crud-toolbar {
+      padding: 1rem 1.75rem; border-bottom: 1px solid var(--verde-borda);
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      flex-shrink: 0; background: var(--creme);
+    }
+    .crud-toolbar input {
+      font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--texto);
+      background: var(--branco); border: 1.5px solid var(--verde-borda);
+      border-radius: 8px; padding: 8px 12px; outline: none; flex: 1; min-width: 180px;
+      transition: border-color 0.2s;
+    }
+    .crud-toolbar input:focus { border-color: var(--verde-claro); }
+    .crud-info { font-size: 12px; color: var(--texto-muted); margin-left: auto; white-space: nowrap; }
+
+    .crud-body { overflow-y: auto; flex: 1; padding: 1.25rem 1.75rem; }
+
+    .crud-loading { text-align: center; padding: 3rem; color: var(--texto-muted); font-size: 14px; }
+    .crud-vazio { text-align: center; padding: 3rem; color: var(--texto-muted); font-size: 14px; }
+
+    /* tabela */
+    .crud-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .crud-table th { background: var(--verde-suave); color: var(--verde); font-weight: 600; padding: 10px 12px; text-align: left; border-bottom: 2px solid var(--verde-borda); white-space: nowrap; }
+    .crud-table td { padding: 10px 12px; border-bottom: 1px solid var(--verde-borda); vertical-align: middle; }
+    .crud-table tr:last-child td { border-bottom: none; }
+    .crud-table tr:hover td { background: var(--verde-suave); }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 100px; font-size: 11px; font-weight: 500; }
+    .badge-ok { background: #e8f4ec; color: #1a4a2a; }
+    .btn-ver { padding: 5px 12px; font-size: 12px; font-family: 'DM Sans', sans-serif; background: var(--verde-suave); color: var(--verde); border: 1px solid var(--verde-borda); border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+    .btn-ver:hover { background: var(--verde-borda); }
+    .btn-del { padding: 5px 10px; font-size: 12px; font-family: 'DM Sans', sans-serif; background: var(--vermelho-suave); color: var(--vermelho); border: 1px solid #f5b4b0; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+    .btn-del:hover { background: #f5c6c3; }
+
+    /* modal detalhe */
+    .detalhe-box {
+      background: var(--branco); border-radius: var(--radius-lg);
+      padding: 2rem; width: 100%; max-width: 520px; max-height: 85vh; overflow-y: auto;
+      animation: fadeUp 0.3s ease;
+    }
+    .detalhe-box h3 { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--verde); margin-bottom: 1.25rem; border-bottom: 1px dashed var(--verde-borda); padding-bottom: 0.75rem; }
+    .detalhe-grid { display: grid; grid-template-columns: 140px 1fr; gap: 8px 12px; font-size: 13px; }
+    .detalhe-grid .dk { color: var(--texto-muted); font-weight: 500; }
+    .detalhe-grid .dv { color: var(--texto); word-break: break-word; }
+    .detalhe-btns { display: flex; gap: 8px; margin-top: 1.5rem; }
+    .btn-fechar-det { flex: 1; padding: 10px; background: var(--creme); color: var(--texto-muted); border: 1.5px solid var(--verde-borda); border-radius: var(--radius); font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+    .btn-fechar-det:hover { background: var(--verde-suave); }
+    .btn-del-det { flex: 1; padding: 10px; background: var(--vermelho-suave); color: var(--vermelho); border: 1.5px solid #f5b4b0; border-radius: var(--radius); font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+    .btn-del-det:hover { background: #f5c6c3; }
+
+    /* ── HEADER ── */
+    header { background: var(--verde); padding: 2.5rem 2rem 2rem; text-align: center; position: relative; overflow: hidden; }
+    header::before { content: ''; position: absolute; inset: 0; background-image: repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(255,255,255,0.02) 40px, rgba(255,255,255,0.02) 80px); }
+    .logo-area { position: relative; z-index: 1; }
+    .logo-badge { display: inline-flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.07); border: 1px solid rgba(200,169,110,0.4); border-radius: 100px; padding: 6px 20px 6px 8px; margin-bottom: 1.5rem; }
+    .logo-icon { width: 36px; height: 36px; background: var(--dourado); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .logo-badge span { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.75); letter-spacing: 0.06em; text-transform: uppercase; }
+    header h1 { font-family: 'Playfair Display', serif; font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 400; color: var(--branco); line-height: 1.2; margin-bottom: 0.6rem; }
+    header h1 em { color: var(--dourado); font-style: italic; }
+    header p { font-size: 15px; font-weight: 300; color: rgba(255,255,255,0.6); max-width: 420px; margin: 0 auto; }
+
+    .divider-ornament { text-align: center; margin: -1px 0; line-height: 0; }
+    .divider-ornament svg { display: block; width: 100%; }
+
+    /* ── MAIN ── */
+    main { flex: 1; padding: 3rem 1.5rem 4rem; display: flex; flex-direction: column; align-items: center; }
+    .card { background: var(--branco); border-radius: var(--radius-lg); box-shadow: var(--sombra); border: 1px solid var(--verde-borda); padding: 2.5rem; width: 100%; max-width: 640px; animation: fadeUp 0.5s ease both; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; margin-top: 2rem; }
+    .section-header:first-child { margin-top: 0; }
+    .section-icon { width: 30px; height: 30px; background: var(--verde-suave); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+    .section-header h2 { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 600; color: var(--verde); }
+    .sep { border: none; border-top: 1px dashed var(--verde-borda); margin: 1.75rem 0; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-2 .full { grid-column: 1 / -1; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    label { font-size: 13px; font-weight: 500; color: var(--texto-muted); letter-spacing: 0.02em; }
+
+    input[type="text"], input[type="email"], input[type="tel"], select, textarea {
+      font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--texto);
+      background: var(--creme); border: 1.5px solid var(--verde-borda); border-radius: var(--radius);
+      padding: 10px 14px; outline: none; transition: border-color 0.2s, background 0.2s, box-shadow 0.2s; width: 100%;
+    }
+    input::placeholder, textarea::placeholder { color: #aabcb0; }
+    input:focus, select:focus, textarea:focus { border-color: var(--verde-claro); background: var(--branco); box-shadow: 0 0 0 3px rgba(74,140,92,0.12); }
+    textarea { resize: vertical; min-height: 88px; }
+
+    .lgpd-row { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; background: var(--verde-suave); border: 1px solid var(--verde-borda); border-radius: var(--radius); }
+    .lgpd-row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--verde-medio); flex-shrink: 0; margin-top: 2px; cursor: pointer; }
+    .lgpd-row label { font-size: 13px; color: var(--texto-muted); line-height: 1.5; cursor: pointer; }
+
+    /* botão retornar */
+    .btn-retornar { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: transparent; color: rgba(255,255,255,0.75); border: 1px solid rgba(255,255,255,0.25); border-radius: 100px; font-family: 'DM Sans', sans-serif; font-size: 13px; text-decoration: none; transition: all 0.2s; margin-bottom: 1.5rem; }
+    .btn-retornar:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.5); }
+
+    .btn-submit { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px 24px; margin-top: 1.5rem; background: var(--verde); color: var(--branco); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; border: none; border-radius: var(--radius); cursor: pointer; transition: background 0.2s, transform 0.15s, box-shadow 0.2s; box-shadow: 0 2px 12px rgba(26,58,42,0.25); }
+    .btn-submit:hover { background: var(--verde-medio); }
+    .btn-submit:active { transform: scale(0.985); }
+    .btn-submit .spinner { display: none; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-submit.loading .spinner { display: block; }
+    .btn-submit.loading .btn-text { opacity: 0.6; }
+
+    .status { margin-top: 14px; padding: 12px 16px; border-radius: var(--radius); font-size: 14px; display: none; }
+    .status.success { display: flex; align-items: center; gap: 8px; background: #e8f4ec; color: #1a4a2a; border: 1px solid #a8d4b4; }
+    .status.error   { display: flex; align-items: center; gap: 8px; background: #fdecea; color: #8b1a1a; border: 1px solid #f5b4b0; }
+    .status.loading { display: flex; align-items: center; gap: 8px; background: var(--dourado-claro); color: #5a4010; border: 1px solid #e0c98a; }
+
+    footer { text-align: center; padding: 1.2rem; font-size: 12px; color: var(--texto-muted); border-top: 1px solid var(--verde-borda); display: flex; align-items: center; justify-content: center; gap: 1rem; flex-wrap: wrap; }
+    footer a { color: var(--verde-claro); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    .admin-btn { background: none; border: 1px solid var(--verde-borda); cursor: pointer; font-size: 12px; color: var(--texto-muted); padding: 5px 12px; border-radius: 100px; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
+    .admin-btn:hover { background: var(--verde-suave); color: var(--verde); }
+
+    @media (max-width: 560px) {
+      .card { padding: 1.5rem; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .grid-2 .full { grid-column: 1; }
+      .crud-toolbar { flex-direction: column; }
+      .crud-info { margin-left: 0; }
+      .detalhe-grid { grid-template-columns: 1fr; }
+      .detalhe-grid .dk { color: var(--verde); margin-top: 6px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ OVERLAY: CONFIGURAÇÃO INICIAL ══ -->
+<div id="overlaySetup" class="overlay active">
+  <div class="setup-box">
+    <h2>⚙️ Configuração inicial</h2>
+    <p>Esta tela aparece <strong>apenas uma vez</strong>. Informe os dados abaixo — eles serão salvos neste navegador e os visitantes nunca verão esta tela.</p>
+    <div class="setup-field">
+      <label for="s-owner">Usuário GitHub</label>
+      <input type="text" id="s-owner" value="luizdecaxtro" placeholder="luizdecaxtro" />
+    </div>
+    <div class="setup-field">
+      <label for="s-repo">Repositório</label>
+      <input type="text" id="s-repo" value="cadastroclientes" placeholder="cadastroclientes" />
+    </div>
+    <div class="setup-field">
+      <label for="s-token">Personal Access Token (PAT)</label>
+      <input type="password" id="s-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
+      <p class="setup-hint">Gere em <a href="https://github.com/settings/tokens/new?scopes=repo&description=cadastroclientes" target="_blank">github.com/settings/tokens</a> — escopo: <strong>repo</strong></p>
+    </div>
+    <button class="btn-setup" onclick="salvarConfig()">✓ Salvar e abrir formulário</button>
+    <div id="setupErro" class="msg-erro-setup"></div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY: SENHA ADMIN ══ -->
+<div id="overlaySenha" class="overlay">
+  <div class="senha-box">
+    <div class="lock-icon">🔐</div>
+    <h2>Acesso Administrativo</h2>
+    <p>Digite a senha para acessar o painel de cadastros.</p>
+    <input type="password" id="inputSenha" placeholder="••••••••" onkeydown="if(event.key==='Enter') verificarSenha()" />
+    <button class="btn-setup" onclick="verificarSenha()">Entrar</button>
+    <button class="btn-cancelar" onclick="fecharOverlay('overlaySenha')">Cancelar</button>
+    <div id="senhaErro" class="senha-erro"></div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY: PAINEL CRUD ══ -->
+<div id="overlayCrud" class="overlay">
+  <div class="crud-box">
+    <div class="crud-header">
+      <h2>📋 Painel de Cadastros — Lojas de Castro</h2>
+      <div class="crud-actions">
+        <button class="btn-crud-acao" onclick="carregarCadastros()">↺ Atualizar</button>
+        <button class="btn-crud-acao" onclick="exportarCSV()">⬇ Exportar CSV</button>
+        <button class="btn-crud-fechar" onclick="fecharOverlay('overlayCrud')" title="Fechar">✕</button>
+      </div>
+    </div>
+    <div class="crud-toolbar">
+      <input type="text" id="crudBusca" placeholder="🔍 Buscar por nome, e-mail, cidade..." oninput="filtrarTabela()" />
+      <span class="crud-info" id="crudInfo">Carregando...</span>
+    </div>
+    <div class="crud-body" id="crudBody">
+      <div class="crud-loading">⏳ Carregando cadastros...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY: DETALHE DO CADASTRO ══ -->
+<div id="overlayDetalhe" class="overlay">
+  <div class="detalhe-box">
+    <h3>👤 Detalhes do Cadastro</h3>
+    <div class="detalhe-grid" id="detalheGrid"></div>
+    <div class="detalhe-btns">
+      <button class="btn-fechar-det" onclick="fecharOverlay('overlayDetalhe')">← Voltar</button>
+      <button class="btn-del-det" id="btnDelDetalhe">🗑 Excluir cadastro</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CABEÇALHO ══ -->
+<header>
+  <div class="logo-area">
+    <a href="https://www.lojasdecastro.com.br" class="btn-retornar">← Retornar ao Site</a>
+    <div class="logo-badge">
+      <div class="logo-icon">🏪</div>
+      <span>Lojas de Castro</span>
+    </div>
+    <h1>Cadastre-se e fique por <em>dentro</em></h1>
+    <p>Receba novidades, promoções exclusivas e as melhores ofertas direto para você.</p>
+  </div>
+</header>
+
+<div class="divider-ornament">
+  <svg viewBox="0 0 1440 32" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" height="32">
+    <path d="M0,0 L1440,0 L1440,32 Q720,0 0,32 Z" fill="#1a3a2a"/>
+  </svg>
+</div>
+
+<!-- ══ FORMULÁRIO ══ -->
+<main>
+  <div class="card">
+    <div class="section-header">
+      <div class="section-icon">👤</div>
+      <h2>Seus dados</h2>
+    </div>
+    <div class="grid-2">
+      <div class="field full">
+        <label for="v-nome">Nome completo *</label>
+        <input type="text" id="v-nome" placeholder="Ana Paula Silva" autocomplete="name" />
+      </div>
+      <div class="field">
+        <label for="v-email">E-mail *</label>
+        <input type="email" id="v-email" placeholder="ana@email.com" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label for="v-telefone">Telefone / WhatsApp</label>
+        <input type="tel" id="v-telefone" placeholder="(42) 99999-0000" autocomplete="tel" />
+      </div>
+    </div>
+
+    <hr class="sep" />
+
+    <div class="section-header">
+      <div class="section-icon">📍</div>
+      <h2>Localização</h2>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="v-cidade">Cidade</label>
+        <input type="text" id="v-cidade" placeholder="Castro" />
+      </div>
+      <div class="field">
+        <label for="v-estado">Estado</label>
+        <select id="v-estado">
+          <option value="">Selecione</option>
+          <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+          <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+          <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+          <option>MG</option><option>PA</option><option>PB</option><option selected>PR</option>
+          <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+          <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+          <option>SP</option><option>SE</option><option>TO</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="sep" />
+
+    <div class="section-header">
+      <div class="section-icon">💬</div>
+      <h2>Seu interesse</h2>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="v-origem">Como nos encontrou?</label>
+        <select id="v-origem">
+          <option value="">Selecione</option>
+          <option>Busca no Google</option>
+          <option>Instagram / Facebook</option>
+          <option>Indicação de amigo</option>
+          <option>Anúncio online</option>
+          <option>Passando pela loja</option>
+          <option>Outros</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="v-categoria">Categoria de interesse</label>
+        <select id="v-categoria">
+          <option value="">Selecione</option>
+          <option>Roupas femininas</option>
+          <option>Roupas masculinas</option>
+          <option>Calçados</option>
+          <option>Acessórios</option>
+          <option>Promoções gerais</option>
+          <option>Outros</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label for="v-mensagem">Mensagem ou observação</label>
+        <textarea id="v-mensagem" placeholder="Deixe sua mensagem, dúvida ou sugestão..."></textarea>
+      </div>
+    </div>
+
+    <hr class="sep" />
+
+    <div class="lgpd-row">
+      <input type="checkbox" id="v-lgpd" />
+      <label for="v-lgpd">
+        Concordo com o tratamento dos meus dados pessoais pela <strong>Lojas de Castro</strong>
+        para fins de comunicação comercial, conforme a
+        <strong>Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018)</strong>.
+        Meus dados não serão compartilhados com terceiros.
+      </label>
+    </div>
+
+    <button class="btn-submit" id="btnSubmit" onclick="enviarCadastro()">
+      <div class="spinner"></div>
+      <span class="btn-text">✉ Enviar cadastro</span>
+    </button>
+
+    <div id="statusMsg" class="status"></div>
+  </div>
+</main>
+
+<!-- ══ RODAPÉ ══ -->
+<footer>
+  <span>© 2025 <a href="https://www.lojasdecastro.com.br" target="_blank">Lojas de Castro</a> · Dados protegidos pela LGPD</span>
+  <button class="admin-btn" onclick="abrirAdmin()">🔐 Acesso Administrativo</button>
+  <button class="admin-btn" onclick="abrirSetup()">⚙ Configurações</button>
+</footer>
+
+<script>
+  const STORE_KEY   = 'ldc_gh_config';
+  const SENHA_ADMIN = 'admincad';
+  let   todosRegistros = [];
+  let   registroAtual  = null;
+
+  /* ══ INIT ══ */
+  window.addEventListener('DOMContentLoaded', () => {
+    const cfg = lerConfig();
+    if (cfg && cfg.token && cfg.owner && cfg.repo) fecharOverlay('overlaySetup');
+    if (cfg) {
+      if (cfg.owner) document.getElementById('s-owner').value = cfg.owner;
+      if (cfg.repo)  document.getElementById('s-repo').value  = cfg.repo;
+    }
+  });
+
+  /* ══ CONFIG ══ */
+  function lerConfig() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch { return null; }
+  }
+
+  function salvarConfig() {
+    const owner = document.getElementById('s-owner').value.trim();
+    const repo  = document.getElementById('s-repo').value.trim();
+    const token = document.getElementById('s-token').value.trim();
+    const err   = document.getElementById('setupErro');
+    if (!owner || !repo || !token) { err.textContent = '⚠ Preencha todos os campos.'; err.style.display = 'block'; return; }
+    if (!token.startsWith('ghp_') && !token.startsWith('github_pat_')) { err.textContent = '⚠ Token inválido. Deve começar com ghp_ ou github_pat_'; err.style.display = 'block'; return; }
+    localStorage.setItem(STORE_KEY, JSON.stringify({ owner, repo, token }));
+    fecharOverlay('overlaySetup');
+  }
+
+  function abrirSetup() {
+    const cfg = lerConfig();
+    if (cfg) { document.getElementById('s-owner').value = cfg.owner || ''; document.getElementById('s-repo').value = cfg.repo || ''; document.getElementById('s-token').value = ''; }
+    document.getElementById('overlaySetup').classList.add('active');
+  }
+
+  /* ══ OVERLAYS ══ */
+  function fecharOverlay(id) { document.getElementById(id).classList.remove('active'); }
+
+  /* ══ ADMIN ══ */
+  function abrirAdmin() {
+    document.getElementById('inputSenha').value = '';
+    document.getElementById('senhaErro').style.display = 'none';
+    document.getElementById('overlaySenha').classList.add('active');
+    setTimeout(() => document.getElementById('inputSenha').focus(), 200);
+  }
+
+  function verificarSenha() {
+    const s = document.getElementById('inputSenha').value;
+    if (s === SENHA_ADMIN) {
+      fecharOverlay('overlaySenha');
+      abrirCrud();
+    } else {
+      const err = document.getElementById('senhaErro');
+      err.textContent = '❌ Senha incorreta. Tente novamente.';
+      err.style.display = 'block';
+      document.getElementById('inputSenha').value = '';
+      document.getElementById('inputSenha').focus();
+    }
+  }
+
+  /* ══ CRUD ══ */
+  async function abrirCrud() {
+    document.getElementById('overlayCrud').classList.add('active');
+    document.getElementById('crudBusca').value = '';
+    await carregarCadastros();
+  }
+
+  async function carregarCadastros() {
+    const cfg = lerConfig();
+    if (!cfg) return;
+    document.getElementById('crudBody').innerHTML = '<div class="crud-loading">⏳ Carregando cadastros...</div>';
+    document.getElementById('crudInfo').textContent = 'Carregando...';
+    todosRegistros = [];
+
+    try {
+      // lista a pasta visitantes/
+      const r = await ghFetch(`contents/visitantes`, cfg);
+      if (!r.ok) { document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">Nenhum cadastro encontrado ainda.</div>'; document.getElementById('crudInfo').textContent = '0 registros'; return; }
+      const meses = await r.json();
+      const pastas = meses.filter(i => i.type === 'dir');
+
+      for (const pasta of pastas) {
+        const r2 = await ghFetch(`contents/visitantes/${pasta.name}`, cfg);
+        if (!r2.ok) continue;
+        const arquivos = await r2.json();
+        for (const arq of arquivos.filter(a => a.name.endsWith('.json'))) {
+          const r3 = await ghFetch(`contents/visitantes/${pasta.name}/${arq.name}`, cfg);
+          if (!r3.ok) continue;
+          const meta = await r3.json();
+          try {
+            const dados = JSON.parse(atob(meta.content.replace(/\n/g,'')));
+            dados._sha     = meta.sha;
+            dados._path    = meta.path;
+            todosRegistros.push(dados);
+          } catch {}
+        }
+      }
+
+      todosRegistros.sort((a, b) => b.id - a.id);
+      renderTabela(todosRegistros);
+    } catch (e) {
+      document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">❌ Erro ao carregar. Verifique a conexão.</div>';
+    }
+  }
+
+  function ghFetch(path, cfg) {
+    return fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/${path}`, {
+      headers: { 'Authorization': `Bearer ${cfg.token}`, 'X-GitHub-Api-Version': '2022-11-28' }
+    });
+  }
+
+  function renderTabela(registros) {
+    const info = document.getElementById('crudInfo');
+    info.textContent = `${registros.length} registro${registros.length !== 1 ? 's' : ''}`;
+    if (registros.length === 0) {
+      document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">Nenhum cadastro encontrado.</div>'; return;
+    }
+    let html = `<table class="crud-table">
+      <thead><tr>
+        <th>#</th><th>Data</th><th>Nome</th><th>E-mail</th><th>Cidade/UF</th><th>LGPD</th><th>Ações</th>
+      </tr></thead><tbody>`;
+    registros.forEach((r, i) => {
+      const cidade = [r.cidade, r.estado].filter(Boolean).join('/') || '—';
+      html += `<tr>
+        <td>${i + 1}</td>
+        <td style="white-space:nowrap">${r.data_cadastro || '—'}</td>
+        <td><strong>${r.nome || '—'}</strong></td>
+        <td>${r.email || '—'}</td>
+        <td>${cidade}</td>
+        <td><span class="badge badge-ok">✓ Aceito</span></td>
+        <td style="white-space:nowrap; display:flex; gap:6px;">
+          <button class="btn-ver" onclick="verDetalhe(${r.id})">Ver</button>
+          <button class="btn-del" onclick="confirmarExclusao(${r.id})">Excluir</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('crudBody').innerHTML = html;
+  }
+
+  function filtrarTabela() {
+    const q = document.getElementById('crudBusca').value.toLowerCase();
+    if (!q) { renderTabela(todosRegistros); return; }
+    const filtrados = todosRegistros.filter(r =>
+      (r.nome   || '').toLowerCase().includes(q) ||
+      (r.email  || '').toLowerCase().includes(q) ||
+      (r.cidade || '').toLowerCase().includes(q) ||
+      (r.telefone || '').includes(q)
+    );
+    renderTabela(filtrados);
+  }
+
+  /* ══ DETALHE ══ */
+  function verDetalhe(id) {
+    const r = todosRegistros.find(x => x.id === id);
+    if (!r) return;
+    registroAtual = r;
+    const campos = [
+      ['Nome',         r.nome],
+      ['E-mail',       r.email],
+      ['Telefone',     r.telefone || '—'],
+      ['Cidade',       r.cidade   || '—'],
+      ['Estado',       r.estado   || '—'],
+      ['Como encontrou', r.como_encontrou || '—'],
+      ['Interesse',    r.categoria_interesse || '—'],
+      ['Mensagem',     r.mensagem || '—'],
+      ['LGPD',         r.lgpd_aceite ? '✓ Aceito' : 'Não informado'],
+      ['Data cadastro', r.data_cadastro || '—'],
+      ['Origem',       r.origem_site || '—'],
+    ];
+    document.getElementById('detalheGrid').innerHTML =
+      campos.map(([k,v]) => `<span class="dk">${k}</span><span class="dv">${v}</span>`).join('');
+    document.getElementById('btnDelDetalhe').onclick = () => confirmarExclusao(id);
+    document.getElementById('overlayDetalhe').classList.add('active');
+  }
+
+  /* ══ EXCLUSÃO ══ */
+  async function confirmarExclusao(id) {
+    const r = todosRegistros.find(x => x.id === id);
+    if (!r) return;
+    if (!confirm(`Tem certeza que deseja excluir o cadastro de "${r.nome}"?\nEsta ação não pode ser desfeita.`)) return;
+    const cfg = lerConfig();
+    try {
+      const resp = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${r._path}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${cfg.token}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
+        body: JSON.stringify({ message: `Excluir cadastro: ${r.nome}`, sha: r._sha })
+      });
+      if (resp.ok) {
+        fecharOverlay('overlayDetalhe');
+        todosRegistros = todosRegistros.filter(x => x.id !== id);
+        renderTabela(todosRegistros);
+        alert(`✅ Cadastro de "${r.nome}" excluído com sucesso.`);
+      } else {
+        alert('❌ Erro ao excluir. Tente novamente.');
+      }
+    } catch { alert('❌ Falha de conexão.'); }
+  }
+
+  /* ══ EXPORTAR CSV ══ */
+  function exportarCSV() {
+    if (todosRegistros.length === 0) { alert('Nenhum registro para exportar.'); return; }
+    const cols = ['id','data_cadastro','nome','email','telefone','cidade','estado','como_encontrou','categoria_interesse','mensagem','lgpd_aceite','origem_site'];
+    const header = cols.join(';');
+    const linhas = todosRegistros.map(r => cols.map(c => `"${(r[c] || '').toString().replace(/"/g,'""')}"`).join(';'));
+    const csv = '\uFEFF' + [header, ...linhas].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `cadastros_lojasdecastro_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  /* ══ FORMULÁRIO ══ */
+  const val = id => document.getElementById(id).value.trim();
+  const el  = id => document.getElementById(id);
+
+  el('v-telefone').addEventListener('input', function () {
+    let v = this.value.replace(/\D/g, '').substring(0, 11);
+    if (v.length >= 7)      v = v.replace(/^(\d{2})(\d{4,5})(\d{0,4})$/, '($1) $2-$3');
+    else if (v.length >= 3) v = v.replace(/^(\d{2})(\d+)$/, '($1) $2');
+    this.value = v;
+  });
+
+  function mostrarStatus(msg, tipo) {
+    const s = el('statusMsg');
+    const icones = { success: '✅', error: '❌', loading: '⏳' };
+    s.innerHTML = `<span>${icones[tipo]}</span> <span>${msg}</span>`;
+    s.className = 'status ' + tipo;
+    if (tipo !== 'loading') setTimeout(() => { s.style.display = 'none'; }, 7000);
+  }
+
+  function limpar() {
+    ['v-nome','v-email','v-telefone','v-cidade','v-estado','v-origem','v-categoria','v-mensagem'].forEach(id => el(id).value = '');
+    el('v-lgpd').checked = false; el('v-estado').value = 'PR';
+  }
+
+  async function enviarCadastro() {
+    const cfg = lerConfig();
+    if (!cfg || !cfg.token) { mostrarStatus('Configuração não encontrada. Use o botão ⚙ no rodapé.', 'error'); return; }
+    const nome = val('v-nome'), email = val('v-email'), lgpd = el('v-lgpd').checked;
+    if (!nome)  { mostrarStatus('Informe seu nome completo.', 'error'); el('v-nome').focus(); return; }
+    if (!email || !email.includes('@')) { mostrarStatus('Informe um e-mail válido.', 'error'); el('v-email').focus(); return; }
+    if (!lgpd)  { mostrarStatus('Aceite os termos da LGPD para continuar.', 'error'); return; }
+
+    const btn = el('btnSubmit');
+    btn.classList.add('loading'); btn.disabled = true;
+    mostrarStatus('Enviando seus dados…', 'loading');
+
+    const agora   = new Date();
+    const nomeArq = `visitantes/${agora.getFullYear()}-${String(agora.getMonth()+1).padStart(2,'0')}/cadastro_${agora.getTime()}.json`;
+    const dados   = { id: agora.getTime(), data_cadastro: agora.toLocaleString('pt-BR'), timestamp_iso: agora.toISOString(), nome, email, telefone: val('v-telefone'), cidade: val('v-cidade'), estado: val('v-estado'), como_encontrou: val('v-origem'), categoria_interesse: val('v-categoria'), mensagem: val('v-mensagem'), lgpd_aceite: true, origem_site: 'lojasdecastro.com.br' };
+    const conteudo = btoa(unescape(encodeURIComponent(JSON.stringify(dados, null, 2))));
+
+    try {
+      const resp = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${nomeArq}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${cfg.token}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
+        body: JSON.stringify({ message: `Cadastro: ${nome} — ${agora.toLocaleString('pt-BR')}`, content: conteudo })
+      });
+      if (resp.status === 201) { mostrarStatus(`Obrigado, ${nome}! Cadastro realizado com sucesso. Em breve entraremos em contato. 🎉`, 'success'); limpar(); }
+      else { const err = await resp.json().catch(() => ({})); mostrarStatus(`Erro (${resp.status}): ${err.message || 'Tente novamente.'}`, 'error'); }
+    } catch { mostrarStatus('Falha de conexão. Verifique sua internet.', 'error'); }
+    finally { btn.classList.remove('loading'); btn.disabled = false; }
+  }
+</script>
+</body>
+</html>
