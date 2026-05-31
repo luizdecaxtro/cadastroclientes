@@ -37,6 +37,7 @@
     .btn-setup { width: 100%; padding: 12px; margin-top: 0.5rem; background: var(--verde); color: var(--branco); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; border: none; border-radius: var(--radius); cursor: pointer; transition: background 0.2s; }
     .btn-setup:hover { background: var(--verde-medio); }
     .msg-erro-setup { font-size: 13px; color: #8b1a1a; background: #fdecea; border: 1px solid #f5b4b0; border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: none; }
+    .setup-aviso-cookie { font-size: 12px; color: #5a4010; background: var(--dourado-claro); border: 1px solid #e0c98a; border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: none; }
 
     /* ── SENHA ADMIN ── */
     .senha-box { background: var(--branco); border-radius: var(--radius-lg); padding: 2.5rem; width: 100%; max-width: 380px; animation: fadeUp 0.4s ease; text-align: center; }
@@ -177,6 +178,10 @@
     </div>
     <button class="btn-setup" onclick="salvarConfig()">✓ Salvar e abrir formulário</button>
     <div id="setupErro" class="msg-erro-setup"></div>
+    <div id="setupAvisoCookie" class="setup-aviso-cookie">
+      ⚠️ Seu navegador pode bloquear cookies de terceiros. Se a configuração não persistir,
+      acesse o link diretamente: <strong>luizdecaxtro.github.io/cadastroclientes/cadastro_visitantes.html</strong>
+    </div>
   </div>
 </div>
 
@@ -356,277 +361,134 @@
   const EJS_SERVICE_ID  = 'service_gu62pzn';
   const EJS_TEMPLATE_ID = 'template_p1uhs1h';
 
-  const STORE_KEY   = 'ldc_gh_config';
+  /* ══════════════════════════════════════════════════════════════
+     TOKEN FIXO — SOLUÇÃO DEFINITIVA
+     Se quiser eliminar a tela de configuração para sempre, cole
+     seu token GitHub na linha abaixo (entre as aspas) e faça
+     o commit. Deixe em branco ('') para usar o fluxo normal.
+  ══════════════════════════════════════════════════════════════ */
+  const TOKEN_FIXO = '';   // ex: 'ghp_SeuTokenAqui123'
+  const OWNER_FIXO = 'luizdecaxtro';
+  const REPO_FIXO  = 'cadastroclientes';
+
+  const STORE_KEY   = 'ldc_gh_config_v2';   // v2 para forçar re-setup em clientes antigos
   const SENHA_ADMIN = 'admincad';
   let   todosRegistros = [];
 
-  /* ══ INIT ══ */
-  window.addEventListener('DOMContentLoaded', () => {
-    emailjs.init(EJS_PUBLIC_KEY);
-    const cfg = lerConfig();
-    if (cfg && cfg.token && cfg.owner && cfg.repo) fecharOverlay('overlaySetup');
-    if (cfg) {
-      if (cfg.owner) document.getElementById('s-owner').value = cfg.owner;
-      if (cfg.repo)  document.getElementById('s-repo').value  = cfg.repo;
-    }
-  });
-
-  /* ══ CONFIG GITHUB ══ */
-  function lerConfig() {
-    if (window._ldc_config) return window._ldc_config;
-    try { return JSON.parse(sessionStorage.getItem(STORE_KEY)); } catch {}
-    try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch {}
+  /* ══ COOKIES — funcionam mesmo em iframes cross-origin ══ */
+  function setCookie(name, value, days) {
+    try {
+      const exp = new Date(Date.now() + days * 864e5).toUTCString();
+      // SameSite=None;Secure necessário para iframe cross-origin
+      document.cookie = `${name}=${encodeURIComponent(value)};expires=${exp};path=/;SameSite=None;Secure`;
+      // Fallback sem Secure (funciona em HTTP local)
+      document.cookie = `${name}_fb=${encodeURIComponent(value)};expires=${exp};path=/;SameSite=Lax`;
+    } catch(e) { console.warn('Cookie write failed:', e); }
+  }
+  function getCookie(name) {
+    try {
+      // Tenta SameSite=None primeiro, depois o fallback Lax
+      for (const n of [name, name + '_fb']) {
+        const match = document.cookie.split('; ').find(r => r.startsWith(n + '='));
+        if (match) return decodeURIComponent(match.split('=')[1]);
+      }
+    } catch(e) {}
     return null;
   }
+  function deleteCookie(name) {
+    for (const n of [name, name + '_fb']) {
+      document.cookie = `${n}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=None;Secure`;
+      document.cookie = `${n}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax`;
+    }
+  }
+
+  /* ══ PERSISTÊNCIA EM 4 CAMADAS ══
+     1. TOKEN_FIXO hardcoded (nunca pede config)
+     2. Variável de sessão em memória (mais rápido)
+     3. Cookie (cross-origin, persiste 365 dias)
+     4. localStorage (mesmo domínio)
+     5. sessionStorage (fallback)
+  ══════════════════════════════════════════════════════════════ */
+  function lerConfig() {
+    // Camada 1: Token fixo no código
+    if (TOKEN_FIXO) return { owner: OWNER_FIXO, repo: REPO_FIXO, token: TOKEN_FIXO };
+
+    // Camada 2: Memória de sessão
+    if (window._ldc_config) return window._ldc_config;
+
+    // Camada 3: Cookie
+    const cookieToken = getCookie('ldc_token');
+    if (cookieToken) {
+      const owner = getCookie('ldc_owner') || OWNER_FIXO;
+      const repo  = getCookie('ldc_repo')  || REPO_FIXO;
+      const cfg = { owner, repo, token: cookieToken };
+      window._ldc_config = cfg;
+      return cfg;
+    }
+
+    // Camada 4: localStorage
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        const cfg = JSON.parse(raw);
+        if (cfg && cfg.token) { window._ldc_config = cfg; return cfg; }
+      }
+    } catch(e) {}
+
+    // Camada 5: sessionStorage
+    try {
+      const raw = sessionStorage.getItem(STORE_KEY);
+      if (raw) {
+        const cfg = JSON.parse(raw);
+        if (cfg && cfg.token) { window._ldc_config = cfg; return cfg; }
+      }
+    } catch(e) {}
+
+    return null;
+  }
+
   function salvarConfig() {
     const owner = document.getElementById('s-owner').value.trim();
     const repo  = document.getElementById('s-repo').value.trim();
     const token = document.getElementById('s-token').value.trim();
     const err   = document.getElementById('setupErro');
-    if (!owner || !repo || !token) { err.textContent = '⚠ Preencha todos os campos.'; err.style.display = 'block'; return; }
-    if (token.length < 10) { err.textContent = '⚠ Token inválido.'; err.style.display = 'block'; return; }
+    const aviso = document.getElementById('setupAvisoCookie');
+
+    if (!owner || !repo || !token) {
+      err.textContent = '⚠ Preencha todos os campos.';
+      err.style.display = 'block';
+      return;
+    }
+    if (token.length < 10) {
+      err.textContent = '⚠ Token inválido.';
+      err.style.display = 'block';
+      return;
+    }
+
     const cfg = { owner, repo, token };
     window._ldc_config = cfg;
-    try { sessionStorage.setItem(STORE_KEY, JSON.stringify(cfg)); } catch {}
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(cfg)); } catch {}
+
+    // Salva em TODAS as camadas disponíveis
+    setCookie('ldc_token', token, 365);
+    setCookie('ldc_owner', owner, 365);
+    setCookie('ldc_repo',  repo,  365);
+
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(cfg)); }  catch(e) {}
+    try { sessionStorage.setItem(STORE_KEY, JSON.stringify(cfg)); } catch(e) {}
+
+    // Verifica se cookie foi gravado (pode falhar em HTTP sem Secure)
+    const cookieSalvo = getCookie('ldc_token');
+    if (!cookieSalvo) {
+      aviso.style.display = 'block';
+    }
+
+    err.style.display = 'none';
     fecharOverlay('overlaySetup');
   }
+
   function abrirSetup() {
     const cfg = lerConfig();
-    if (cfg) { document.getElementById('s-owner').value = cfg.owner || ''; document.getElementById('s-repo').value = cfg.repo || ''; document.getElementById('s-token').value = ''; }
-    document.getElementById('overlaySetup').classList.add('active');
-  }
-
-  /* ══ OVERLAYS ══ */
-  function fecharOverlay(id) { document.getElementById(id).classList.remove('active'); }
-
-  /* ══ ADMIN / SENHA ══ */
-  function abrirAdmin() {
-    document.getElementById('inputSenha').value = '';
-    document.getElementById('senhaErro').style.display = 'none';
-    document.getElementById('overlaySenha').classList.add('active');
-    setTimeout(() => document.getElementById('inputSenha').focus(), 200);
-  }
-  function verificarSenha() {
-    if (document.getElementById('inputSenha').value === SENHA_ADMIN) {
-      fecharOverlay('overlaySenha');
-      abrirCrud();
-    } else {
-      const err = document.getElementById('senhaErro');
-      err.textContent = '❌ Senha incorreta. Tente novamente.';
-      err.style.display = 'block';
-      document.getElementById('inputSenha').value = '';
-      document.getElementById('inputSenha').focus();
-    }
-  }
-
-  /* ══ CRUD ══ */
-  async function abrirCrud() {
-    document.getElementById('overlayCrud').classList.add('active');
-    document.getElementById('crudBusca').value = '';
-    await carregarCadastros();
-  }
-
-  function ghFetch(path, cfg, opts = {}) {
-    return fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/${path}`, {
-      headers: { 'Authorization': `Bearer ${cfg.token}`, 'X-GitHub-Api-Version': '2022-11-28' },
-      ...opts
-    });
-  }
-
-  async function carregarCadastros() {
-    const cfg = lerConfig();
-    if (!cfg) return;
-    document.getElementById('crudBody').innerHTML = '<div class="crud-loading">⏳ Carregando cadastros...</div>';
-    document.getElementById('crudInfo').textContent = 'Carregando...';
-    todosRegistros = [];
-    try {
-      const r = await ghFetch('contents/visitantes', cfg);
-      if (!r.ok) { document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">Nenhum cadastro encontrado ainda.</div>'; document.getElementById('crudInfo').textContent = '0 registros'; return; }
-      const meses = await r.json();
-      for (const pasta of meses.filter(i => i.type === 'dir')) {
-        const r2 = await ghFetch(`contents/visitantes/${pasta.name}`, cfg);
-        if (!r2.ok) continue;
-        const arquivos = await r2.json();
-        for (const arq of arquivos.filter(a => a.name.endsWith('.json'))) {
-          const r3 = await ghFetch(`contents/visitantes/${pasta.name}/${arq.name}`, cfg);
-          if (!r3.ok) continue;
-          const meta = await r3.json();
-          try {
-            const dados = JSON.parse(atob(meta.content.replace(/\n/g, '')));
-            dados._sha = meta.sha; dados._path = meta.path;
-            todosRegistros.push(dados);
-          } catch {}
-        }
-      }
-      todosRegistros.sort((a, b) => b.id - a.id);
-      renderTabela(todosRegistros);
-    } catch {
-      document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">❌ Erro ao carregar. Verifique a conexão.</div>';
-    }
-  }
-
-  function renderTabela(registros) {
-    document.getElementById('crudInfo').textContent = `${registros.length} registro${registros.length !== 1 ? 's' : ''}`;
-    if (registros.length === 0) { document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">Nenhum cadastro encontrado.</div>'; return; }
-    let html = `<table class="crud-table"><thead><tr><th>#</th><th>Data</th><th>Nome</th><th>E-mail</th><th>Cidade/UF</th><th>LGPD</th><th>Ações</th></tr></thead><tbody>`;
-    registros.forEach((r, i) => {
-      const cidade = [r.cidade, r.estado].filter(Boolean).join('/') || '—';
-      html += `<tr>
-        <td>${i + 1}</td>
-        <td style="white-space:nowrap">${r.data_cadastro || '—'}</td>
-        <td><strong>${r.nome || '—'}</strong></td>
-        <td>${r.email || '—'}</td>
-        <td>${cidade}</td>
-        <td><span class="badge badge-ok">✓ Aceito</span></td>
-        <td style="white-space:nowrap; display:flex; gap:6px;">
-          <button class="btn-ver" onclick="verDetalhe(${r.id})">Ver</button>
-          <button class="btn-del" onclick="confirmarExclusao(${r.id})">Excluir</button>
-        </td>
-      </tr>`;
-    });
-    html += '</tbody></table>';
-    document.getElementById('crudBody').innerHTML = html;
-  }
-
-  function filtrarTabela() {
-    const q = document.getElementById('crudBusca').value.toLowerCase();
-    renderTabela(!q ? todosRegistros : todosRegistros.filter(r =>
-      (r.nome || '').toLowerCase().includes(q) ||
-      (r.email || '').toLowerCase().includes(q) ||
-      (r.cidade || '').toLowerCase().includes(q) ||
-      (r.telefone || '').includes(q)
-    ));
-  }
-
-  function verDetalhe(id) {
-    const r = todosRegistros.find(x => x.id === id);
-    if (!r) return;
-    const campos = [
-      ['Nome', r.nome], ['E-mail', r.email], ['Telefone', r.telefone || '—'],
-      ['Cidade', r.cidade || '—'], ['Estado', r.estado || '—'],
-      ['Como encontrou', r.como_encontrou || '—'], ['Interesse', r.categoria_interesse || '—'],
-      ['Mensagem', r.mensagem || '—'], ['LGPD', r.lgpd_aceite ? '✓ Aceito' : '—'],
-      ['Data cadastro', r.data_cadastro || '—'], ['Origem', r.origem_site || '—'],
-    ];
-    document.getElementById('detalheGrid').innerHTML = campos.map(([k, v]) => `<span class="dk">${k}</span><span class="dv">${v}</span>`).join('');
-    document.getElementById('btnDelDetalhe').onclick = () => confirmarExclusao(id);
-    document.getElementById('overlayDetalhe').classList.add('active');
-  }
-
-  async function confirmarExclusao(id) {
-    const r = todosRegistros.find(x => x.id === id);
-    if (!r || !confirm(`Excluir o cadastro de "${r.nome}"?\nEsta ação não pode ser desfeita.`)) return;
-    const cfg = lerConfig();
-    try {
-      const resp = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${r._path}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${cfg.token}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
-        body: JSON.stringify({ message: `Excluir cadastro: ${r.nome}`, sha: r._sha })
-      });
-      if (resp.ok) {
-        fecharOverlay('overlayDetalhe');
-        todosRegistros = todosRegistros.filter(x => x.id !== id);
-        renderTabela(todosRegistros);
-        alert(`✅ Cadastro de "${r.nome}" excluído com sucesso.`);
-      } else { alert('❌ Erro ao excluir. Tente novamente.'); }
-    } catch { alert('❌ Falha de conexão.'); }
-  }
-
-  function exportarCSV() {
-    if (!todosRegistros.length) { alert('Nenhum registro para exportar.'); return; }
-    const cols = ['id','data_cadastro','nome','email','telefone','cidade','estado','como_encontrou','categoria_interesse','mensagem','lgpd_aceite','origem_site'];
-    const csv = '\uFEFF' + [cols.join(';'), ...todosRegistros.map(r => cols.map(c => `"${(r[c]||'').toString().replace(/"/g,'""')}"`).join(';'))].join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    a.download = `cadastros_lojasdecastro_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-  }
-
-  /* ══ FORMULÁRIO ══ */
-  const val = id => document.getElementById(id).value.trim();
-  const el  = id => document.getElementById(id);
-
-  el('v-telefone').addEventListener('input', function () {
-    let v = this.value.replace(/\D/g, '').substring(0, 11);
-    if (v.length >= 7)      v = v.replace(/^(\d{2})(\d{4,5})(\d{0,4})$/, '($1) $2-$3');
-    else if (v.length >= 3) v = v.replace(/^(\d{2})(\d+)$/, '($1) $2');
-    this.value = v;
-  });
-
-  function mostrarStatus(msg, tipo) {
-    const s = el('statusMsg');
-    const icones = { success: '✅', error: '❌', loading: '⏳' };
-    s.innerHTML = `<span>${icones[tipo]}</span> <span>${msg}</span>`;
-    s.className = 'status ' + tipo;
-    if (tipo !== 'loading') setTimeout(() => { s.style.display = 'none'; }, 7000);
-  }
-
-  function limpar() {
-    ['v-nome','v-email','v-telefone','v-cidade','v-estado','v-origem','v-categoria','v-mensagem'].forEach(id => el(id).value = '');
-    el('v-lgpd').checked = false; el('v-estado').value = 'PR';
-  }
-
-  async function enviarCadastro() {
-    const cfg = lerConfig();
-    if (!cfg || !cfg.token) { mostrarStatus('Configuração não encontrada. Use o botão ⚙ no rodapé.', 'error'); return; }
-    const nome = val('v-nome'), email = val('v-email'), lgpd = el('v-lgpd').checked;
-    if (!nome)  { mostrarStatus('Informe seu nome completo.', 'error'); el('v-nome').focus(); return; }
-    if (!email || !email.includes('@')) { mostrarStatus('Informe um e-mail válido.', 'error'); el('v-email').focus(); return; }
-    if (!lgpd)  { mostrarStatus('Aceite os termos da LGPD para continuar.', 'error'); return; }
-
-    const btn = el('btnSubmit');
-    btn.classList.add('loading'); btn.disabled = true;
-    mostrarStatus('Enviando seus dados…', 'loading');
-
-    const agora   = new Date();
-    const nomeArq = `visitantes/${agora.getFullYear()}-${String(agora.getMonth()+1).padStart(2,'0')}/cadastro_${agora.getTime()}.json`;
-    const dados   = {
-      id: agora.getTime(), data_cadastro: agora.toLocaleString('pt-BR'),
-      timestamp_iso: agora.toISOString(), nome, email,
-      telefone: val('v-telefone'), cidade: val('v-cidade'), estado: val('v-estado'),
-      como_encontrou: val('v-origem'), categoria_interesse: val('v-categoria'),
-      mensagem: val('v-mensagem'), lgpd_aceite: true, origem_site: 'lojasdecastro.com.br'
-    };
-    const conteudo = btoa(unescape(encodeURIComponent(JSON.stringify(dados, null, 2))));
-
-    try {
-      /* 1️⃣ Salvar no GitHub */
-      const resp = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${nomeArq}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${cfg.token}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
-        body: JSON.stringify({ message: `Cadastro: ${nome} — ${agora.toLocaleString('pt-BR')}`, content: conteudo })
-      });
-
-      if (resp.status === 201) {
-        /* 2️⃣ Enviar e-mail de notificação via EmailJS */
-        try {
-          await emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_ID, {
-            nome:          nome,
-            email:         email,
-            telefone:      dados.telefone  || 'Não informado',
-            cidade:        dados.cidade    || 'Não informada',
-            estado:        dados.estado    || 'Não informado',
-            como_encontrou: dados.como_encontrou      || 'Não informado',
-            categoria:     dados.categoria_interesse  || 'Não informado',
-            mensagem:      dados.mensagem  || 'Nenhuma mensagem',
-            data:          dados.data_cadastro
-          });
-        } catch (emailErr) {
-          console.warn('E-mail não enviado:', emailErr);
-          /* Não bloqueia o sucesso do cadastro */
-        }
-
-        mostrarStatus(`Obrigado, ${nome}! Cadastro realizado com sucesso. Em breve entraremos em contato. 🎉`, 'success');
-        limpar();
-      } else {
-        const err = await resp.json().catch(() => ({}));
-        mostrarStatus(`Erro (${resp.status}): ${err.message || 'Tente novamente.'}`, 'error');
-      }
-    } catch { mostrarStatus('Falha de conexão. Verifique sua internet.', 'error'); }
-    finally { btn.classList.remove('loading'); btn.disabled = false; }
-  }
-</script>
-</body>
-</html>
+    if (cfg) {
+      document.getElementById('s-owner').value = cfg.owner || OWNER_FIXO;
+      document.getElementById('s-repo').value  = cfg.repo  || REPO_FIXO;
 
