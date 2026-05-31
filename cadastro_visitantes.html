@@ -373,7 +373,10 @@
 
   /* ══ CONFIG GITHUB ══ */
   function lerConfig() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch { return null; }
+    if (window._ldc_config) return window._ldc_config;
+    try { return JSON.parse(sessionStorage.getItem(STORE_KEY)); } catch {}
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch {}
+    return null;
   }
   function salvarConfig() {
     const owner = document.getElementById('s-owner').value.trim();
@@ -382,7 +385,10 @@
     const err   = document.getElementById('setupErro');
     if (!owner || !repo || !token) { err.textContent = '⚠ Preencha todos os campos.'; err.style.display = 'block'; return; }
     if (token.length < 10) { err.textContent = '⚠ Token inválido.'; err.style.display = 'block'; return; }
-    localStorage.setItem(STORE_KEY, JSON.stringify({ owner, repo, token }));
+    const cfg = { owner, repo, token };
+    window._ldc_config = cfg;
+    try { sessionStorage.setItem(STORE_KEY, JSON.stringify(cfg)); } catch {}
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(cfg)); } catch {}
     fecharOverlay('overlaySetup');
   }
   function abrirSetup() {
