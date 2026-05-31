@@ -381,7 +381,7 @@
     const token = document.getElementById('s-token').value.trim();
     const err   = document.getElementById('setupErro');
     if (!owner || !repo || !token) { err.textContent = '⚠ Preencha todos os campos.'; err.style.display = 'block'; return; }
-    if (!token.startsWith('ghp_') && !token.startsWith('github_pat_')) { err.textContent = '⚠ Token inválido.'; err.style.display = 'block'; return; }
+    if (token.length < 10) { err.textContent = '⚠ Token inválido.'; err.style.display = 'block'; return; }
     localStorage.setItem(STORE_KEY, JSON.stringify({ owner, repo, token }));
     fecharOverlay('overlaySetup');
   }
@@ -491,4 +491,136 @@
       (r.cidade || '').toLowerCase().includes(q) ||
       (r.telefone || '').includes(q)
     ));
+  }
+
+  function verDetalhe(id) {
+    const r = todosRegistros.find(x => x.id === id);
+    if (!r) return;
+    const campos = [
+      ['Nome', r.nome], ['E-mail', r.email], ['Telefone', r.telefone || '—'],
+      ['Cidade', r.cidade || '—'], ['Estado', r.estado || '—'],
+      ['Como encontrou', r.como_encontrou || '—'], ['Interesse', r.categoria_interesse || '—'],
+      ['Mensagem', r.mensagem || '—'], ['LGPD', r.lgpd_aceite ? '✓ Aceito' : '—'],
+      ['Data cadastro', r.data_cadastro || '—'], ['Origem', r.origem_site || '—'],
+    ];
+    document.getElementById('detalheGrid').innerHTML = campos.map(([k, v]) => `<span class="dk">${k}</span><span class="dv">${v}</span>`).join('');
+    document.getElementById('btnDelDetalhe').onclick = () => confirmarExclusao(id);
+    document.getElementById('overlayDetalhe').classList.add('active');
+  }
+
+  async function confirmarExclusao(id) {
+    const r = todosRegistros.find(x => x.id === id);
+    if (!r || !confirm(`Excluir o cadastro de "${r.nome}"?\nEsta ação não pode ser desfeita.`)) return;
+    const cfg = lerConfig();
+    try {
+      const resp = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${r._path}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${cfg.token}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
+        body: JSON.stringify({ message: `Excluir cadastro: ${r.nome}`, sha: r._sha })
+      });
+      if (resp.ok) {
+        fecharOverlay('overlayDetalhe');
+        todosRegistros = todosRegistros.filter(x => x.id !== id);
+        renderTabela(todosRegistros);
+        alert(`✅ Cadastro de "${r.nome}" excluído com sucesso.`);
+      } else { alert('❌ Erro ao excluir. Tente novamente.'); }
+    } catch { alert('❌ Falha de conexão.'); }
+  }
+
+  function exportarCSV() {
+    if (!todosRegistros.length) { alert('Nenhum registro para exportar.'); return; }
+    const cols = ['id','data_cadastro','nome','email','telefone','cidade','estado','como_encontrou','categoria_interesse','mensagem','lgpd_aceite','origem_site'];
+    const csv = '\uFEFF' + [cols.join(';'), ...todosRegistros.map(r => cols.map(c => `"${(r[c]||'').toString().replace(/"/g,'""')}"`).join(';'))].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `cadastros_lojasdecastro_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
+
+  /* ══ FORMULÁRIO ══ */
+  const val = id => document.getElementById(id).value.trim();
+  const el  = id => document.getElementById(id);
+
+  el('v-telefone').addEventListener('input', function () {
+    let v = this.value.replace(/\D/g, '').substring(0, 11);
+    if (v.length >= 7)      v = v.replace(/^(\d{2})(\d{4,5})(\d{0,4})$/, '($1) $2-$3');
+    else if (v.length >= 3) v = v.replace(/^(\d{2})(\d+)$/, '($1) $2');
+    this.value = v;
+  });
+
+  function mostrarStatus(msg, tipo) {
+    const s = el('statusMsg');
+    const icones = { success: '✅', error: '❌', loading: '⏳' };
+    s.innerHTML = `<span>${icones[tipo]}</span> <span>${msg}</span>`;
+    s.className = 'status ' + tipo;
+    if (tipo !== 'loading') setTimeout(() => { s.style.display = 'none'; }, 7000);
+  }
+
+  function limpar() {
+    ['v-nome','v-email','v-telefone','v-cidade','v-estado','v-origem','v-categoria','v-mensagem'].forEach(id => el(id).value = '');
+    el('v-lgpd').checked = false; el('v-estado').value = 'PR';
+  }
+
+  async function enviarCadastro() {
+    const cfg = lerConfig();
+    if (!cfg || !cfg.token) { mostrarStatus('Configuração não encontrada. Use o botão ⚙ no rodapé.', 'error'); return; }
+    const nome = val('v-nome'), email = val('v-email'), lgpd = el('v-lgpd').checked;
+    if (!nome)  { mostrarStatus('Informe seu nome completo.', 'error'); el('v-nome').focus(); return; }
+    if (!email || !email.includes('@')) { mostrarStatus('Informe um e-mail válido.', 'error'); el('v-email').focus(); return; }
+    if (!lgpd)  { mostrarStatus('Aceite os termos da LGPD para continuar.', 'error'); return; }
+
+    const btn = el('btnSubmit');
+    btn.classList.add('loading'); btn.disabled = true;
+    mostrarStatus('Enviando seus dados…', 'loading');
+
+    const agora   = new Date();
+    const nomeArq = `visitantes/${agora.getFullYear()}-${String(agora.getMonth()+1).padStart(2,'0')}/cadastro_${agora.getTime()}.json`;
+    const dados   = {
+      id: agora.getTime(), data_cadastro: agora.toLocaleString('pt-BR'),
+      timestamp_iso: agora.toISOString(), nome, email,
+      telefone: val('v-telefone'), cidade: val('v-cidade'), estado: val('v-estado'),
+      como_encontrou: val('v-origem'), categoria_interesse: val('v-categoria'),
+      mensagem: val('v-mensagem'), lgpd_aceite: true, origem_site: 'lojasdecastro.com.br'
+    };
+    const conteudo = btoa(unescape(encodeURIComponent(JSON.stringify(dados, null, 2))));
+
+    try {
+      /* 1️⃣ Salvar no GitHub */
+      const resp = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${nomeArq}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${cfg.token}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
+        body: JSON.stringify({ message: `Cadastro: ${nome} — ${agora.toLocaleString('pt-BR')}`, content: conteudo })
+      });
+
+      if (resp.status === 201) {
+        /* 2️⃣ Enviar e-mail de notificação via EmailJS */
+        try {
+          await emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_ID, {
+            nome:          nome,
+            email:         email,
+            telefone:      dados.telefone  || 'Não informado',
+            cidade:        dados.cidade    || 'Não informada',
+            estado:        dados.estado    || 'Não informado',
+            como_encontrou: dados.como_encontrou      || 'Não informado',
+            categoria:     dados.categoria_interesse  || 'Não informado',
+            mensagem:      dados.mensagem  || 'Nenhuma mensagem',
+            data:          dados.data_cadastro
+          });
+        } catch (emailErr) {
+          console.warn('E-mail não enviado:', emailErr);
+          /* Não bloqueia o sucesso do cadastro */
+        }
+
+        mostrarStatus(`Obrigado, ${nome}! Cadastro realizado com sucesso. Em breve entraremos em contato. 🎉`, 'success');
+        limpar();
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        mostrarStatus(`Erro (${resp.status}): ${err.message || 'Tente novamente.'}`, 'error');
+      }
+    } catch { mostrarStatus('Falha de conexão. Verifique sua internet.', 'error'); }
+    finally { btn.classList.remove('loading'); btn.disabled = false; }
+  }
+</script>
+</body>
+</html>
 
