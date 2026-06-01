@@ -162,7 +162,7 @@
 <div id="overlaySetup" class="overlay active">
   <div class="setup-box">
     <h2>⚙️ Configuração inicial</h2>
-    <p>Esta tela aparece <strong>apenas uma vez</strong>. Informe os dados abaixo — eles serão salvos neste navegador e os visitantes nunca verão esta tela.</p>
+    <p>Esta tela aparece quando o token não está configurado neste dispositivo. Para evitar que apareça em celulares e outros dispositivos, edite o arquivo HTML e preencha o campo <strong>TOKEN_FIXO</strong> com seu token GitHub.</p>
     <div class="setup-field">
       <label for="s-owner">Usuário GitHub</label>
       <input type="text" id="s-owner" value="luizdecaxtro" placeholder="luizdecaxtro" />
@@ -362,12 +362,25 @@
   const EJS_TEMPLATE_ID = 'template_p1uhs1h';
 
   /* ══════════════════════════════════════════════════════════════
-     TOKEN FIXO — SOLUÇÃO DEFINITIVA
-     Se quiser eliminar a tela de configuração para sempre, cole
-     seu token GitHub na linha abaixo (entre as aspas) e faça
-     o commit. Deixe em branco ('') para usar o fluxo normal.
+     ✅ TOKEN FIXO — PREENCHA AQUI PARA FUNCIONAR EM TODOS OS
+        DISPOSITIVOS (celular, tablet, qualquer navegador).
+     
+     COMO FAZER:
+       1. Substitua '' pelo seu token do GitHub (entre aspas simples)
+          Exemplo:  const TOKEN_FIXO = 'ghp_SeuTokenAqui123';
+       2. Salve o arquivo e faça o commit no repositório
+       3. Pronto — a tela de configuração nunca mais aparecerá
+     
+     POR QUE PRECISA DISSO:
+       localStorage e cookies ficam salvos APENAS no navegador
+       onde você configurou. Cada dispositivo novo (celular,
+       tablet, outro computador) não tem essa informação.
+       Com TOKEN_FIXO no código, todos os dispositivos funcionam.
+     
+     SEGURANÇA: O repositório 'cadastroclientes' deve ser PRIVADO
+     no GitHub para que o token não fique visível publicamente.
   ══════════════════════════════════════════════════════════════ */
-  const TOKEN_FIXO = '';   // ex: 'ghp_SeuTokenAqui123'
+  const TOKEN_FIXO = '';   // ← COLE SEU TOKEN AQUI: 'ghp_...'
   const OWNER_FIXO = 'luizdecaxtro';
   const REPO_FIXO  = 'cadastroclientes';
 
