@@ -37,7 +37,6 @@
     .btn-setup { width: 100%; padding: 12px; margin-top: 0.5rem; background: var(--verde); color: var(--branco); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; border: none; border-radius: var(--radius); cursor: pointer; transition: background 0.2s; }
     .btn-setup:hover { background: var(--verde-medio); }
     .msg-erro-setup { font-size: 13px; color: #8b1a1a; background: #fdecea; border: 1px solid #f5b4b0; border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: none; }
-    .setup-aviso-cookie { font-size: 12px; color: #5a4010; background: var(--dourado-claro); border: 1px solid #e0c98a; border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: none; }
 
     /* ── SENHA ADMIN ── */
     .senha-box { background: var(--branco); border-radius: var(--radius-lg); padding: 2.5rem; width: 100%; max-width: 380px; animation: fadeUp 0.4s ease; text-align: center; }
@@ -158,30 +157,17 @@
 </head>
 <body>
 
-<!-- ══ OVERLAY: CONFIGURAÇÃO INICIAL ══ -->
-<div id="overlaySetup" class="overlay active">
-  <div class="setup-box">
-    <h2>⚙️ Configuração inicial</h2>
-    <p>Esta tela aparece quando o token não está configurado neste dispositivo. Para evitar que apareça em celulares e outros dispositivos, edite o arquivo HTML e preencha o campo <strong>TOKEN_FIXO</strong> com seu token GitHub.</p>
-    <div class="setup-field">
-      <label for="s-owner">Usuário GitHub</label>
-      <input type="text" id="s-owner" value="luizdecaxtro" placeholder="luizdecaxtro" />
-    </div>
     <div class="setup-field">
       <label for="s-repo">Repositório</label>
       <input type="text" id="s-repo" value="cadastroclientes" placeholder="cadastroclientes" />
     </div>
     <div class="setup-field">
       <label for="s-token">Personal Access Token (PAT)</label>
-      <input type="password" id="s-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" onkeydown="if(event.key==='Enter') salvarConfig()" />
+      <input type="password" id="s-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
       <p class="setup-hint">Gere em <a href="https://github.com/settings/tokens/new?scopes=repo&description=cadastroclientes" target="_blank">github.com/settings/tokens</a> — escopo: <strong>repo</strong></p>
     </div>
-    <button class="btn-setup" id="btnSalvarConfig" onclick="salvarConfig()">✓ Salvar e abrir formulário</button>
+    <button class="btn-setup" onclick="salvarConfig()">✓ Salvar e abrir formulário</button>
     <div id="setupErro" class="msg-erro-setup"></div>
-    <div id="setupAvisoCookie" class="setup-aviso-cookie">
-      ⚠️ Seu navegador pode bloquear cookies de terceiros. Se a configuração não persistir,
-      acesse o link diretamente: <strong>luizdecaxtro.github.io/cadastroclientes/cadastro_visitantes.html</strong>
-    </div>
   </div>
 </div>
 
@@ -352,7 +338,7 @@
 <footer>
   <span>© 2025 <a href="https://www.lojasdecastro.com.br" target="_blank">Lojas de Castro</a> · Dados protegidos pela LGPD</span>
   <button class="admin-btn" onclick="abrirAdmin()">🔐 Acesso Administrativo</button>
-  <button class="admin-btn" onclick="abrirSetup()">⚙ Configurações</button>
+  
 </footer>
 
 <script>
@@ -361,215 +347,15 @@
   const EJS_SERVICE_ID  = 'service_gu62pzn';
   const EJS_TEMPLATE_ID = 'template_p1uhs1h';
 
-  /* ══════════════════════════════════════════════════════════════
-     ✅ TOKEN FIXO — PREENCHA AQUI PARA FUNCIONAR EM TODOS OS
-        DISPOSITIVOS (celular, tablet, qualquer navegador).
-     
-     COMO FAZER:
-       1. Substitua '' pelo seu token do GitHub (entre aspas simples)
-          Exemplo:  const TOKEN_FIXO = '';
-       2. Salve o arquivo e faça o commit no repositório
-       3. Pronto — a tela de configuração nunca mais aparecerá
-     
-     POR QUE PRECISA DISSO:
-       localStorage e cookies ficam salvos APENAS no navegador
-       onde você configurou. Cada dispositivo novo (celular,
-       tablet, outro computador) não tem essa informação.
-       Com TOKEN_FIXO no código, todos os dispositivos funcionam.
-     
-     SEGURANÇA: O repositório 'cadastroclientes' deve ser PRIVADO
-     no GitHub para que o token não fique visível publicamente.
-  ══════════════════════════════════════════════════════════════ */
-  const TOKEN_FIXO = '';   // ← COLE SEU TOKEN AQUI: 'ghp_...'
-  const OWNER_FIXO = 'luizdecaxtro';
-  const REPO_FIXO  = 'cadastroclientes';
-
-  const STORE_KEY   = 'ldc_gh_config_v2';   // v2 para forçar re-setup em clientes antigos
+  /* ══ WORKER URL (Cloudflare) ══ */
+  const WORKER_URL = "https://cadastro-lojasdecastro.intelectus247.workers.dev";
   const SENHA_ADMIN = 'admincad';
+  const GH_OWNER = 'luizdecaxtro';
+  const GH_REPO  = 'cadastroclientes';
   let   todosRegistros = [];
 
-  /* ══ COOKIES — funcionam mesmo em iframes cross-origin ══ */
-  function setCookie(name, value, days) {
-    try {
-      const exp = new Date(Date.now() + days * 864e5).toUTCString();
-      // SameSite=None;Secure necessário para iframe cross-origin
-      document.cookie = `${name}=${encodeURIComponent(value)};expires=${exp};path=/;SameSite=None;Secure`;
-      // Fallback sem Secure (funciona em HTTP local)
-      document.cookie = `${name}_fb=${encodeURIComponent(value)};expires=${exp};path=/;SameSite=Lax`;
-    } catch(e) { console.warn('Cookie write failed:', e); }
-  }
-  function getCookie(name) {
-    try {
-      // Tenta SameSite=None primeiro, depois o fallback Lax
-      for (const n of [name, name + '_fb']) {
-        const match = document.cookie.split('; ').find(r => r.startsWith(n + '='));
-        if (match) return decodeURIComponent(match.split('=')[1]);
-      }
-    } catch(e) {}
-    return null;
-  }
-  function deleteCookie(name) {
-    for (const n of [name, name + '_fb']) {
-      document.cookie = `${n}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=None;Secure`;
-      document.cookie = `${n}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax`;
-    }
-  }
 
-  /* ══ PERSISTÊNCIA EM 4 CAMADAS ══
-     1. TOKEN_FIXO hardcoded (nunca pede config)
-     2. Variável de sessão em memória (mais rápido)
-     3. Cookie (cross-origin, persiste 365 dias)
-     4. localStorage (mesmo domínio)
-     5. sessionStorage (fallback)
-  ══════════════════════════════════════════════════════════════ */
-  function lerConfig() {
-    // Camada 1: Token fixo no código
-    if (TOKEN_FIXO) return { owner: OWNER_FIXO, repo: REPO_FIXO, token: TOKEN_FIXO };
-
-    // Camada 2: Memória de sessão
-    if (window._ldc_config) return window._ldc_config;
-
-    // Camada 3: Cookie
-    const cookieToken = getCookie('ldc_token');
-    if (cookieToken) {
-      const owner = getCookie('ldc_owner') || OWNER_FIXO;
-      const repo  = getCookie('ldc_repo')  || REPO_FIXO;
-      const cfg = { owner, repo, token: cookieToken };
-      window._ldc_config = cfg;
-      return cfg;
-    }
-
-    // Camada 4: localStorage
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (raw) {
-        const cfg = JSON.parse(raw);
-        if (cfg && cfg.token) { window._ldc_config = cfg; return cfg; }
-      }
-    } catch(e) {}
-
-    // Camada 5: sessionStorage
-    try {
-      const raw = sessionStorage.getItem(STORE_KEY);
-      if (raw) {
-        const cfg = JSON.parse(raw);
-        if (cfg && cfg.token) { window._ldc_config = cfg; return cfg; }
-      }
-    } catch(e) {}
-
-    return null;
-  }
-
-  async function salvarConfig() {
-    const owner = document.getElementById('s-owner').value.trim();
-    const repo  = document.getElementById('s-repo').value.trim();
-    const token = document.getElementById('s-token').value.trim();
-    const err   = document.getElementById('setupErro');
-    const aviso = document.getElementById('setupAvisoCookie');
-    const btn   = document.getElementById('btnSalvarConfig');
-
-    err.style.display  = 'none';
-    aviso.style.display = 'none';
-
-    if (!owner || !repo || !token) {
-      err.textContent = '⚠ Preencha todos os campos.';
-      err.style.display = 'block';
-      return;
-    }
-    if (token.length < 10) {
-      err.textContent = '⚠ Token muito curto — verifique se copiou corretamente.';
-      err.style.display = 'block';
-      return;
-    }
-
-    // Feedback visual imediato
-    btn.disabled = true;
-    btn.textContent = '⏳ Verificando token...';
-
-    // ── Valida token contra a API do GitHub ──
-    try {
-      const testResp = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-GitHub-Api-Version': '2022-11-28'
-        }
-      });
-
-      if (testResp.status === 401) {
-        mostrarErroSetup(btn, err, '❌ Token inválido ou expirado. Gere um novo em github.com/settings/tokens (escopo: repo).');
-        return;
-      }
-      if (testResp.status === 403) {
-        mostrarErroSetup(btn, err, '❌ Token sem permissão. Certifique-se de marcar o escopo "repo" ao criar o token.');
-        return;
-      }
-      if (testResp.status === 404) {
-        mostrarErroSetup(btn, err, `❌ Repositório "${owner}/${repo}" não encontrado. Verifique o nome do usuário e do repositório.`);
-        return;
-      }
-      if (!testResp.ok) {
-        mostrarErroSetup(btn, err, `❌ Erro ${testResp.status} ao conectar ao GitHub. Tente novamente.`);
-        return;
-      }
-    } catch (netErr) {
-      mostrarErroSetup(btn, err, '❌ Sem conexão com o GitHub. Verifique sua internet e tente novamente.');
-      return;
-    }
-
-    // Token válido — salva em todas as camadas
-    btn.textContent = '✓ Token válido! Salvando...';
-
-    const cfg = { owner, repo, token };
-    window._ldc_config = cfg;
-
-    setCookie('ldc_token', token, 365);
-    setCookie('ldc_owner', owner, 365);
-    setCookie('ldc_repo',  repo,  365);
-
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(cfg)); }  catch(e) {}
-    try { sessionStorage.setItem(STORE_KEY, JSON.stringify(cfg)); } catch(e) {}
-
-    const cookieSalvo = getCookie('ldc_token');
-    if (!cookieSalvo) {
-      aviso.style.display = 'block';
-    }
-
-    btn.textContent = '✓ Salvar e abrir formulário';
-    btn.disabled = false;
-    fecharOverlay('overlaySetup');
-  }
-
-  function mostrarErroSetup(btn, errEl, msg) {
-    errEl.textContent = msg;
-    errEl.style.display = 'block';
-    btn.textContent = '✓ Salvar e abrir formulário';
-    btn.disabled = false;
-  }
-
-  function abrirSetup() {
-    const cfg = lerConfig();
-    if (cfg) {
-      document.getElementById('s-owner').value = cfg.owner || OWNER_FIXO;
-      document.getElementById('s-repo').value  = cfg.repo  || REPO_FIXO;
-      document.getElementById('s-token').value = '';
-    }
-    document.getElementById('setupErro').style.display = 'none';
-    document.getElementById('setupAvisoCookie').style.display = 'none';
-    document.getElementById('overlaySetup').classList.add('active');
-  }
-
-  /* ══ INIT ══ */
-  window.addEventListener('DOMContentLoaded', () => {
-    try { if (typeof emailjs !== "undefined") emailjs.init(EJS_PUBLIC_KEY); } catch(e) { console.warn("EmailJS não carregou:", e); }
-    const cfg = lerConfig();
-    if (cfg && cfg.token && cfg.owner && cfg.repo) {
-      fecharOverlay('overlaySetup');
-    } else {
-      // Preenche defaults
-      document.getElementById('s-owner').value = OWNER_FIXO;
-      document.getElementById('s-repo').value  = REPO_FIXO;
-    }
-  });
+  /* ══ CONFIG GITHUB ══ */
 
   /* ══ OVERLAYS ══ */
   function fecharOverlay(id) { document.getElementById(id).classList.remove('active'); }
@@ -596,6 +382,12 @@
 
   /* ══ CRUD ══ */
   async function abrirCrud() {
+    // Ask for GitHub token for admin panel (one-time per session)
+    if (!window._adminToken) {
+      const t = prompt('Digite o Token GitHub para acessar os cadastros:');
+      if (!t) return;
+      window._adminToken = t;
+    }
     document.getElementById('overlayCrud').classList.add('active');
     document.getElementById('crudBusca').value = '';
     await carregarCadastros();
@@ -609,18 +401,13 @@
   }
 
   async function carregarCadastros() {
-    const cfg = lerConfig();
-    if (!cfg) return;
+    const cfg = { owner: GH_OWNER, repo: GH_REPO, token: window._adminToken || '' };
     document.getElementById('crudBody').innerHTML = '<div class="crud-loading">⏳ Carregando cadastros...</div>';
     document.getElementById('crudInfo').textContent = 'Carregando...';
     todosRegistros = [];
     try {
       const r = await ghFetch('contents/visitantes', cfg);
-      if (!r.ok) {
-        document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">Nenhum cadastro encontrado ainda.</div>';
-        document.getElementById('crudInfo').textContent = '0 registros';
-        return;
-      }
+      if (!r.ok) { document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">Nenhum cadastro encontrado ainda.</div>'; document.getElementById('crudInfo').textContent = '0 registros'; return; }
       const meses = await r.json();
       for (const pasta of meses.filter(i => i.type === 'dir')) {
         const r2 = await ghFetch(`contents/visitantes/${pasta.name}`, cfg);
@@ -646,10 +433,7 @@
 
   function renderTabela(registros) {
     document.getElementById('crudInfo').textContent = `${registros.length} registro${registros.length !== 1 ? 's' : ''}`;
-    if (registros.length === 0) {
-      document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">Nenhum cadastro encontrado.</div>';
-      return;
-    }
+    if (registros.length === 0) { document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">Nenhum cadastro encontrado.</div>'; return; }
     let html = `<table class="crud-table"><thead><tr><th>#</th><th>Data</th><th>Nome</th><th>E-mail</th><th>Cidade/UF</th><th>LGPD</th><th>Ações</th></tr></thead><tbody>`;
     registros.forEach((r, i) => {
       const cidade = [r.cidade, r.estado].filter(Boolean).join('/') || '—';
@@ -745,20 +529,11 @@
 
   function limpar() {
     ['v-nome','v-email','v-telefone','v-cidade','v-estado','v-origem','v-categoria','v-mensagem'].forEach(id => el(id).value = '');
-    el('v-lgpd').checked = false;
-    el('v-estado').value = 'PR';
+    el('v-lgpd').checked = false; el('v-estado').value = 'PR';
   }
 
   async function enviarCadastro() {
-    const cfg = lerConfig();
-    if (!cfg || !cfg.token) {
-      mostrarStatus('Configuração não encontrada. Use o botão ⚙ no rodapé.', 'error');
-      return;
-    }
-    const nome  = val('v-nome');
-    const email = val('v-email');
-    const lgpd  = el('v-lgpd').checked;
-
+    const nome = val('v-nome'), email = val('v-email'), lgpd = el('v-lgpd').checked;
     if (!nome)  { mostrarStatus('Informe seu nome completo.', 'error'); el('v-nome').focus(); return; }
     if (!email || !email.includes('@')) { mostrarStatus('Informe um e-mail válido.', 'error'); el('v-email').focus(); return; }
     if (!lgpd)  { mostrarStatus('Aceite os termos da LGPD para continuar.', 'error'); return; }
@@ -770,71 +545,48 @@
     const agora   = new Date();
     const nomeArq = `visitantes/${agora.getFullYear()}-${String(agora.getMonth()+1).padStart(2,'0')}/cadastro_${agora.getTime()}.json`;
     const dados   = {
-      id: agora.getTime(),
-      data_cadastro: agora.toLocaleString('pt-BR'),
-      timestamp_iso: agora.toISOString(),
-      nome, email,
-      telefone: val('v-telefone'),
-      cidade:   val('v-cidade'),
-      estado:   val('v-estado'),
-      como_encontrou:      val('v-origem'),
-      categoria_interesse: val('v-categoria'),
-      mensagem:            val('v-mensagem'),
-      lgpd_aceite: true,
-      origem_site: 'lojasdecastro.com.br'
+      id: agora.getTime(), data_cadastro: agora.toLocaleString('pt-BR'),
+      timestamp_iso: agora.toISOString(), nome, email,
+      telefone: val('v-telefone'), cidade: val('v-cidade'), estado: val('v-estado'),
+      como_encontrou: val('v-origem'), categoria_interesse: val('v-categoria'),
+      mensagem: val('v-mensagem'), lgpd_aceite: true, origem_site: 'lojasdecastro.com.br'
     };
     const conteudo = btoa(unescape(encodeURIComponent(JSON.stringify(dados, null, 2))));
 
     try {
       /* 1️⃣ Salvar no GitHub */
-      const resp = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${nomeArq}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${cfg.token}`,
-          'Content-Type': 'application/json',
-          'X-GitHub-Api-Version': '2022-11-28'
-        },
-        body: JSON.stringify({
-          message: `Cadastro: ${nome} — ${agora.toLocaleString('pt-BR')}`,
-          content: conteudo
-        })
+      const resp = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados)
       });
-
-      if (resp.status === 201) {
+      const resultado = await resp.json();
+      if (resultado.ok) {
         /* 2️⃣ Enviar e-mail de notificação via EmailJS */
         try {
-          if (typeof emailjs !== 'undefined') {
-            emailjs.init(EJS_PUBLIC_KEY);
-            await emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_ID, {
-              nome,
-              email,
-              telefone:       dados.telefone  || 'Não informado',
-              cidade:         dados.cidade    || 'Não informada',
-              estado:         dados.estado    || 'Não informado',
-              como_encontrou: dados.como_encontrou      || 'Não informado',
-              categoria:      dados.categoria_interesse || 'Não informado',
-              mensagem:       dados.mensagem  || 'Nenhuma mensagem',
-              data:           dados.data_cadastro
-            });
-          } else {
-            console.warn('EmailJS nao disponivel.');
-          }
+          await emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_ID, {
+            nome:          nome,
+            email:         email,
+            telefone:      dados.telefone  || 'Não informado',
+            cidade:        dados.cidade    || 'Não informada',
+            estado:        dados.estado    || 'Não informado',
+            como_encontrou: dados.como_encontrou      || 'Não informado',
+            categoria:     dados.categoria_interesse  || 'Não informado',
+            mensagem:      dados.mensagem  || 'Nenhuma mensagem',
+            data:          dados.data_cadastro
+          });
         } catch (emailErr) {
-          console.warn('E-mail nao enviado:', emailErr);
+          console.warn('E-mail não enviado:', emailErr);
+          /* Não bloqueia o sucesso do cadastro */
         }
 
         mostrarStatus(`Obrigado, ${nome}! Cadastro realizado com sucesso. Em breve entraremos em contato. 🎉`, 'success');
         limpar();
       } else {
-        const errBody = await resp.json().catch(() => ({}));
-        mostrarStatus(`Erro (${resp.status}): ${errBody.message || 'Tente novamente.'}`, 'error');
+        mostrarStatus('Erro ao salvar. Tente novamente.', 'error');
       }
-    } catch {
-      mostrarStatus('Falha de conexão. Verifique sua internet.', 'error');
-    } finally {
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+    } catch { mostrarStatus('Falha de conexão. Verifique sua internet.', 'error'); }
+    finally { btn.classList.remove('loading'); btn.disabled = false; }
   }
 </script>
 </body>
