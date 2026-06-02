@@ -157,20 +157,6 @@
 </head>
 <body>
 
-    <div class="setup-field">
-      <label for="s-repo">Repositório</label>
-      <input type="text" id="s-repo" value="cadastroclientes" placeholder="cadastroclientes" />
-    </div>
-    <div class="setup-field">
-      <label for="s-token">Personal Access Token (PAT)</label>
-      <input type="password" id="s-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
-      <p class="setup-hint">Gere em <a href="https://github.com/settings/tokens/new?scopes=repo&description=cadastroclientes" target="_blank">github.com/settings/tokens</a> — escopo: <strong>repo</strong></p>
-    </div>
-    <button class="btn-setup" onclick="salvarConfig()">✓ Salvar e abrir formulário</button>
-    <div id="setupErro" class="msg-erro-setup"></div>
-  </div>
-</div>
-
 <!-- ══ OVERLAY: SENHA ADMIN ══ -->
 <div id="overlaySenha" class="overlay">
   <div class="senha-box">
@@ -344,6 +330,7 @@
 <script>
   /* ══ CONFIGURAÇÕES EMAILJS ══ */
   const EJS_PUBLIC_KEY  = 'Yx_qgE1YjaUyqSALl';
+  emailjs.init(EJS_PUBLIC_KEY);
   const EJS_SERVICE_ID  = 'service_gu62pzn';
   const EJS_TEMPLATE_ID = 'template_p1uhs1h';
 
@@ -482,7 +469,7 @@
   async function confirmarExclusao(id) {
     const r = todosRegistros.find(x => x.id === id);
     if (!r || !confirm(`Excluir o cadastro de "${r.nome}"?\nEsta ação não pode ser desfeita.`)) return;
-    const cfg = lerConfig();
+    const cfg = { owner: GH_OWNER, repo: GH_REPO, token: window._adminToken || '' };
     try {
       const resp = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${r._path}`, {
         method: 'DELETE',
