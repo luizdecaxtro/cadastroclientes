@@ -239,66 +239,11 @@
         <input type="email" id="v-email" placeholder="ana@email.com" autocomplete="email" />
       </div>
       <div class="field">
-        <label for="v-telefone">Telefone / WhatsApp</label>
+        <label for="v-telefone">WhatsApp</label>
         <input type="tel" id="v-telefone" placeholder="(42) 99999-0000" autocomplete="tel" />
       </div>
-    </div>
-    <hr class="sep" />
-    <div class="section-header">
-      <div class="section-icon">📍</div>
-      <h2>Localização</h2>
-    </div>
-    <div class="grid-2">
-      <div class="field">
-        <label for="v-cidade">Cidade</label>
-        <input type="text" id="v-cidade" placeholder="Castro" />
-      </div>
-      <div class="field">
-        <label for="v-estado">Estado</label>
-        <select id="v-estado">
-          <option value="">Selecione</option>
-          <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
-          <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
-          <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
-          <option>MG</option><option>PA</option><option>PB</option><option selected>PR</option>
-          <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
-          <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
-          <option>SP</option><option>SE</option><option>TO</option>
-        </select>
-      </div>
-    </div>
-    <hr class="sep" />
-    <div class="section-header">
-      <div class="section-icon">💬</div>
-      <h2>Seu interesse</h2>
-    </div>
-    <div class="grid-2">
-      <div class="field">
-        <label for="v-origem">Como nos encontrou?</label>
-        <select id="v-origem">
-          <option value="">Selecione</option>
-          <option>Busca no Google</option>
-          <option>Instagram / Facebook</option>
-          <option>Indicação de amigo</option>
-          <option>Anúncio online</option>
-          <option>Passando pela loja</option>
-          <option>Outros</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="v-categoria">Categoria de interesse</label>
-        <select id="v-categoria">
-          <option value="">Selecione</option>
-          <option>Roupas femininas</option>
-          <option>Roupas masculinas</option>
-          <option>Calçados</option>
-          <option>Acessórios</option>
-          <option>Promoções gerais</option>
-          <option>Outros</option>
-        </select>
-      </div>
       <div class="field full">
-        <label for="v-mensagem">Mensagem ou observação</label>
+        <label for="v-mensagem">Mensagem <span style="opacity:.65;font-weight:400">(opcional)</span></label>
         <textarea id="v-mensagem" placeholder="Deixe sua mensagem, dúvida ou sugestão..."></textarea>
       </div>
     </div>
@@ -421,15 +366,14 @@
   function renderTabela(registros) {
     document.getElementById('crudInfo').textContent = `${registros.length} registro${registros.length !== 1 ? 's' : ''}`;
     if (registros.length === 0) { document.getElementById('crudBody').innerHTML = '<div class="crud-vazio">Nenhum cadastro encontrado.</div>'; return; }
-    let html = `<table class="crud-table"><thead><tr><th>#</th><th>Data</th><th>Nome</th><th>E-mail</th><th>Cidade/UF</th><th>LGPD</th><th>Ações</th></tr></thead><tbody>`;
+    let html = `<table class="crud-table"><thead><tr><th>#</th><th>Data</th><th>Nome</th><th>E-mail</th><th>WhatsApp</th><th>LGPD</th><th>Ações</th></tr></thead><tbody>`;
     registros.forEach((r, i) => {
-      const cidade = [r.cidade, r.estado].filter(Boolean).join('/') || '—';
       html += `<tr>
         <td>${i + 1}</td>
         <td style="white-space:nowrap">${r.data_cadastro || '—'}</td>
         <td><strong>${r.nome || '—'}</strong></td>
         <td>${r.email || '—'}</td>
-        <td>${cidade}</td>
+        <td style="white-space:nowrap">${r.telefone || '—'}</td>
         <td><span class="badge badge-ok">✓ Aceito</span></td>
         <td style="white-space:nowrap; display:flex; gap:6px;">
           <button class="btn-ver" onclick="verDetalhe(${r.id})">Ver</button>
@@ -455,12 +399,17 @@
     const r = todosRegistros.find(x => x.id === id);
     if (!r) return;
     const campos = [
-      ['Nome', r.nome], ['E-mail', r.email], ['Telefone', r.telefone || '—'],
-      ['Cidade', r.cidade || '—'], ['Estado', r.estado || '—'],
-      ['Como encontrou', r.como_encontrou || '—'], ['Interesse', r.categoria_interesse || '—'],
+      ['Nome', r.nome], ['E-mail', r.email], ['WhatsApp', r.telefone || '—'],
+    ];
+    /* Campos legados: aparecem apenas em cadastros antigos que ainda os possuem */
+    if (r.cidade)              campos.push(['Cidade', r.cidade]);
+    if (r.estado)              campos.push(['Estado', r.estado]);
+    if (r.como_encontrou)      campos.push(['Como encontrou', r.como_encontrou]);
+    if (r.categoria_interesse) campos.push(['Interesse', r.categoria_interesse]);
+    campos.push(
       ['Mensagem', r.mensagem || '—'], ['LGPD', r.lgpd_aceite ? '✓ Aceito' : '—'],
       ['Data cadastro', r.data_cadastro || '—'], ['Origem', r.origem_site || '—'],
-    ];
+    );
     document.getElementById('detalheGrid').innerHTML = campos.map(([k, v]) => `<span class="dk">${k}</span><span class="dv">${v}</span>`).join('');
     document.getElementById('btnDelDetalhe').onclick = () => confirmarExclusao(id);
     document.getElementById('overlayDetalhe').classList.add('active');
@@ -515,8 +464,8 @@
   }
 
   function limpar() {
-    ['v-nome','v-email','v-telefone','v-cidade','v-estado','v-origem','v-categoria','v-mensagem'].forEach(id => el(id).value = '');
-    el('v-lgpd').checked = false; el('v-estado').value = 'PR';
+    ['v-nome','v-email','v-telefone','v-mensagem'].forEach(id => el(id).value = '');
+    el('v-lgpd').checked = false;
   }
 
   async function enviarCadastro() {
@@ -534,8 +483,7 @@
     const dados   = {
       id: agora.getTime(), data_cadastro: agora.toLocaleString('pt-BR'),
       timestamp_iso: agora.toISOString(), nome, email,
-      telefone: val('v-telefone'), cidade: val('v-cidade'), estado: val('v-estado'),
-      como_encontrou: val('v-origem'), categoria_interesse: val('v-categoria'),
+      telefone: val('v-telefone'),
       mensagem: val('v-mensagem'), lgpd_aceite: true, origem_site: 'lojasdecastro.com.br'
     };
     const conteudo = btoa(unescape(encodeURIComponent(JSON.stringify(dados, null, 2))));
@@ -555,10 +503,6 @@
             nome:          nome,
             email:         email,
             telefone:      dados.telefone  || 'Não informado',
-            cidade:        dados.cidade    || 'Não informada',
-            estado:        dados.estado    || 'Não informado',
-            como_encontrou: dados.como_encontrou      || 'Não informado',
-            categoria:     dados.categoria_interesse  || 'Não informado',
             mensagem:      dados.mensagem  || 'Nenhuma mensagem',
             data:          dados.data_cadastro
           });
